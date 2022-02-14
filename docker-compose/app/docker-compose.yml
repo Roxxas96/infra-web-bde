@@ -1,0 +1,60 @@
+version: "3.8"
+
+volumes:
+    db:
+
+services:
+    web-bde_db:
+        image: bitnami/postgresql:14.1.0-debian-10-r31
+        restart: unless-stopped
+        deploy:
+          restart_policy:
+            condition: on-failure
+            max_attempts: 3
+        volumes:
+            - db:/bitnami/postgresql
+            - ./initdb.sql:/docker-entrypoint-initdb.d/initdb.sql
+        environment:
+            - POSTGRESQL_USER=webbde
+            - POSTGRESQL_PASSWORD=webbde
+            - POSTGRESQL_DATABASE=webbde
+    web-bde_back:
+        image: webbde-back
+        restart: unless-stopped
+        deploy:
+          replicas: 3
+          restart_policy:
+            condition: on-failure
+            max_attempts: 3
+        networks:
+          - nginx-proxy
+          - default
+        depends_on:
+          - web-bde_db
+        environment:
+            - DATABASE_URI=postgresql://webbde:webbde@web-bde_db:5432/webbde
+            - JWT_TOKEN=secrettoken
+            - JWT_EXPIRATION=30d
+            - API_HOST=webbde.api.agomez.org
+    web-bde_front:
+        image: webbde-front
+        restart: unless-stopped
+        deploy:
+          replicas: 3
+          restart_policy:
+            condition: on-failure
+            max_attempts: 3
+        environment:
+            - API_URL=http://web-bde_back:4000
+        networks:
+          - nginx-proxy
+          - default
+        depends_on:
+          - web-bde_back
+          
+networks:
+  nginx-proxy:
+    external: true
+    name: nginx-proxy
+  default:
+    name: web-bde

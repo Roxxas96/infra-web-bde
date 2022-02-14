@@ -1,0 +1,17 @@
+version: "2"
+
+volumes:
+    db:
+
+services:
+  db:
+    image: bitnami/postgresql:14.1.0-debian-10-r31
+    ports:
+        - 5432:5432
+    volumes:
+        - db:/bitnami/postgresql
+        - ./initdb.sql:/docker-entrypoint-initdb.d/initdb.sql
+    environment:
+        - POSTGRESQL_USER=webbde
+        - POSTGRESQL_PASSWORD=webbde
+        - POSTGRESQL_DATABASE=webbde
