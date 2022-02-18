@@ -29,19 +29,19 @@ global:
   imagePullSecrets: []
   storageClass: ""
   postgresql:
-    username: ""
-    password: ""
-    database: ""
-    repmgrUsername: ""
-    repmgrPassword: ""
-    repmgrDatabase: ""
+    username: "webbde"
+    password: "webbde"
+    database: "webbde"
+    repmgrUsername: "repmgr"
+    repmgrPassword: "repmgr"
+    repmgrDatabase: "repmgr"
     existingSecret: ""
   ldap:
     bindpw: ""
     existingSecret: ""
   pgpool:
-    adminUsername: ""
-    adminPassword: ""
+    adminUsername: "pgpool"
+    adminPassword: "pgpool"
     existingSecret: ""
 
 ## @section General parameters
@@ -71,7 +71,7 @@ extraDeploy: []
 serviceAccount:
   ## @param serviceAccount.enabled Enable service account (Note: Service Account will only be automatically created if `serviceAccount.name` is not set)
   ##
-  enabled: false
+  enabled: true
   ## @param serviceAccount.name Name of an already existing service account. Setting this value disables the automatic service account creation
   ##
   name: ""
@@ -282,13 +282,17 @@ postgresql:
     ##    cpu: 250m
     ##    memory: 256Mi
     ##
-    limits: {}
+    limits:
+      cpu: 250m
+      memory: 256Mi
     ## Examples:
     ## requests:
     ##    cpu: 250m
     ##    memory: 256Mi
     ##
-    requests: {}
+    requests:
+      cpu: 250m
+      memory: 256Mi
   ## PostgreSQL container's liveness probe
   ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
   ## @param postgresql.livenessProbe.enabled Enable livenessProbe
@@ -354,16 +358,16 @@ postgresql:
   ## @param postgresql.password PostgreSQL password
   ## @param postgresql.database PostgreSQL database
   ##
-  username: postgres
-  password: ""
-  database: ""
+  username: webbde
+  password: "webbde"
+  database: "webbde"
   ## @param postgresql.existingSecret PostgreSQL password using existing secret
   ##
   existingSecret: ""
   ## @param postgresql.postgresPassword PostgreSQL password for the `postgres` user when `username` is not `postgres`
   ## ref: https://github.com/bitnami/bitnami-docker-postgresql/blob/master/README.md#creating-a-database-user-on-first-run (see note!)
   ##
-  postgresPassword: ""
+  postgresPassword: "postgres"
   ## @param postgresql.usePasswordFile Set to `true` to mount PostgreSQL secret as a file instead of passing environment variable
   ##
   usePasswordFile: ""
@@ -394,7 +398,7 @@ postgresql:
   ## @param postgresql.repmgrReconnectInterval Repmgr backend reconnection interval (in seconds)
   ##
   repmgrUsername: repmgr
-  repmgrPassword: ""
+  repmgrPassword: "repmgr"
   repmgrDatabase: repmgr
   repmgrLogLevel: NOTICE
   repmgrConnectTimeout: 5
@@ -532,7 +536,184 @@ postgresql:
   ##      #!/bin/sh
   ##      echo "Do something."
   ##
-  initdbScripts: {}
+  initdbScripts:
+    initdb.sql: |
+      --Create User Table
+
+      CREATE TABLE IF NOT EXISTS "User" (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(50) DEFAULT '',
+          surname VARCHAR(50) DEFAULT '',
+          pseudo VARCHAR(50) DEFAULT 'Anonym user',
+          email VARCHAR(100) NOT NULL UNIQUE,
+          password VARCHAR(200) NOT NULL CHECK (char_length(password) > 7),
+          privilege INTEGER DEFAULT 0 CHECK (privilege = 0 OR privilege = 1 OR privilege = 2),
+          wallet INTEGER DEFAULT 0
+      );
+
+      --Create Session table, sessions are used to authenticate user using a token put in "Athorization" header
+
+      CREATE TABLE IF NOT EXISTS "Session" (
+          id SERIAL PRIMARY KEY,
+          "userId" INTEGER NOT NULL,
+          jwt VARCHAR(255) NOT NULL UNIQUE,
+          CONSTRAINT "userSession" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE
+      );
+
+      --Create Challenge table
+
+      CREATE TABLE IF NOT EXISTS "Challenge" (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(50) DEFAULT 'Unnamed challenge',
+          description TEXT DEFAULT '',
+          reward INTEGER DEFAULT 0 CHECK (reward >= 0),
+          "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          "creatorId" INTEGER,
+          CONSTRAINT "challengeCreator" FOREIGN KEY ("creatorId") REFERENCES "User" ("id") ON DELETE SET NULL
+      );
+
+      --Create Accomplishment table, accomplishments are sumbited by users and validated by admins to increase user wallet
+
+      CREATE TABLE If NOT EXISTS "Accomplishment" (
+          id SERIAL PRIMARY KEY,
+          "userId" INTEGER,
+          "challengeId" INTEGER,
+          proof TEXT DEFAULT '',
+          "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          validation INTEGER CHECK (validation = 1 OR validation = -1),
+          CONSTRAINT "accomplishmentCreator" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE SET NULL,
+          CONSTRAINT "accomplishmentChallenge" FOREIGN KEY ("challengeId") REFERENCES "Challenge" ("id") ON DELETE SET NULL
+      );
+
+      --Create Goodies table
+
+      CREATE TABLE IF NOT EXISTS "Goodies" (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(50) DEFAULT 'Unnamed goodies',
+          description TEXT DEFAULT '',
+          image TEXT DEFAULT '',
+          price INTEGER DEFAULT 0 CHECK (price >= 0),
+          "buyLimit" INTEGER DEFAULT 1 CHECK ("buyLimit" >= 0),
+          "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          "creatorId" INTEGER,
+          CONSTRAINT "goodiesCreator" FOREIGN KEY ("creatorId") REFERENCES "User" ("id") ON DELETE SET NULL
+      );
+
+      --Create Purchase table, purchases are traces of what a user has bought
+
+      CREATE TABLE IF NOT EXISTS "Purchase" (
+          id SERIAL PRIMARY KEY,
+          "goodiesId" INTEGER NOT NULL,
+          "userId" INTEGER NOT NULL,
+          "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      --Insert a default Super admin so you can add other admins
+
+      INSERT INTO "User" (pseudo, email, password, privilege) VALUES (
+          'Admin user',
+          'admin@umontpellier.fr',
+          '$2b$10$HtOLm9x.vZEPe672Kan3pueDmH5LaBpPV2kOiEWtE4xdA3pRfNP/e',
+          2
+      );
+
+      --On validation trigger, update user wallet when his accomplishment has been validated by an admin, validation states are Accepted: 1, Refused: -1
+
+      CREATE OR REPLACE FUNCTION on_validation_update()
+        RETURNS TRIGGER 
+        LANGUAGE PLPGSQL
+        AS
+      $$
+      DECLARE
+        gain INTEGER;
+      BEGIN
+          IF NEW."challengeId" IS NULL OR NEW."userId" IS NULL THEN
+              RETURN NEW;
+          END IF;
+          IF OLD.validation = 1 OR OLD.validation = -1 THEN
+              RAISE EXCEPTION 'Accomplishment has allready a validation state';
+          END IF;
+        IF NEW.validation = 1 THEN
+              SELECT reward INTO gain FROM "Challenge" WHERE id = NEW."challengeId";
+
+          UPDATE "User" SET wallet = wallet + gain WHERE id = NEW."userId";
+        END IF;
+
+        RETURN NEW;
+      END;
+      $$;
+
+      --Use trigger on each update on table accomplishment
+
+      CREATE OR REPLACE TRIGGER increase_wallet
+          BEFORE UPDATE
+          ON "Accomplishment"
+          FOR EACH ROW
+          EXECUTE PROCEDURE on_validation_update();
+
+      --On purchase trigger, update user wallet on buying a goodies
+
+      CREATE OR REPLACE FUNCTION on_purchase()
+        RETURNS TRIGGER 
+        LANGUAGE PLPGSQL
+        AS
+      $$
+      DECLARE
+        cost INTEGER;
+          bank INTEGER;
+          bought_count INTEGER;
+          bought_limit INTEGER;
+      BEGIN
+          SELECT price, "buyLimit" INTO cost, bought_limit FROM "Goodies" WHERE id = NEW."goodiesId";
+          SELECT wallet INTO bank FROM "User" WHERE id = NEW."userId";
+          SELECT count(p.id) INTO bought_count FROM "Purchase" p INNER JOIN "Goodies" g ON g.id = p."goodiesId" WHERE p."userId" = NEW."userId";
+
+          IF bought_count >= bought_limit THEN
+              RAISE EXCEPTION 'Limit reached';
+          END IF;
+
+          IF cost > bank THEN
+              RAISE EXCEPTION 'Not enought money in wallet';
+          END IF;
+
+          UPDATE "User" SET wallet = wallet - cost WHERE id = NEW."userId";
+
+        RETURN NEW;
+      END;
+      $$;
+
+      --Use trigger on each insert on table purchase
+
+      CREATE OR REPLACE TRIGGER decrease_wallet
+          BEFORE INSERT
+          ON "Purchase"
+          FOR EACH ROW
+          EXECUTE PROCEDURE on_purchase();
+
+      --On refund trigger, update user wallet when an admin delete his purchase
+      CREATE OR REPLACE FUNCTION on_refund()
+        RETURNS TRIGGER 
+        LANGUAGE PLPGSQL
+        AS
+      $$
+      DECLARE
+        cost INTEGER;
+      BEGIN
+          SELECT price INTO cost FROM "Goodies" WHERE id = OLD."goodiesId";
+
+          UPDATE "User" SET wallet = wallet + cost WHERE id = OLD."userId";
+
+        RETURN OLD;
+      END;
+      $$;
+
+      --Use trigger on each delete on table purchase
+
+      CREATE OR REPLACE TRIGGER increase_wallet
+          BEFORE DELETE
+          ON "Purchase"
+          FOR EACH ROW
+          EXECUTE PROCEDURE on_refund();
   ## @param postgresql.initdbScriptsCM ConfigMap with scripts to be run at first boot
   ## NOTE: This will override initdbScripts
   ##
@@ -761,13 +942,17 @@ pgpool:
     ##    cpu: 250m
     ##    memory: 256Mi
     ##
-    limits: {}
+    limits:
+      cpu: 250m
+      memory: 256Mi
     ## Examples:
     ## requests:
     ##    cpu: 250m
     ##    memory: 256Mi
     ##
-    requests: {}
+    requests:
+      cpu: 250m
+      memory: 256Mi
   ## Pgpool container's liveness probe
   ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
   ## @param pgpool.livenessProbe.enabled Enable livenessProbe
@@ -842,8 +1027,8 @@ pgpool:
   ## @param pgpool.adminUsername Pgpool Admin username
   ## @param pgpool.adminPassword Pgpool Admin password
   ##
-  adminUsername: admin
-  adminPassword: ""
+  adminUsername: pgpool
+  adminPassword: "pgpool"
   ## @param pgpool.logConnections Log all client connections (PGPOOL_ENABLE_LOG_CONNECTIONS)
   ## ref: https://github.com/bitnami/bitnami-docker-pgpool#configuration
   ##
@@ -1056,13 +1241,17 @@ metrics:
     ##    cpu: 250m
     ##    memory: 256Mi
     ##
-    limits: {}
+    limits:
+      cpu: 250m
+      memory: 256Mi
     ## Examples:
     ## requests:
     ##    cpu: 250m
     ##    memory: 256Mi
     ##
-    requests: {}
+    requests:
+      cpu: 250m
+      memory: 256Mi
   ## @param metrics.containerPort Prometheus metrics exporter port
   ##
   containerPort: 9187
@@ -1263,13 +1452,17 @@ volumePermissions:
     ##    cpu: 100m
     ##    memory: 128Mi
     ##
-    limits: {}
+    limits:
+      cpu: 250m
+      memory: 256Mi
     ## Examples:
     ## requests:
     ##    cpu: 100m
     ##    memory: 128Mi
     ##
-    requests: {}
+    requests:
+      cpu: 250m
+      memory: 256Mi
 
 ## @section Persistence parameters
 ##
