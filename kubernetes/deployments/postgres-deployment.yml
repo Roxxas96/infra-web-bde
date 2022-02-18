@@ -12,11 +12,14 @@ spec:
         app: postgres
     spec:
       containers:
-      - name: postgres
-        image: <Image>
-        resources:
-          limits:
-            memory: "128Mi"
-            cpu: "500m"
-        ports:
-        - containerPort: 5432
+        - name: postgres
+          image: bitnami/postgresql:14.1.0-debian-10-r31
+          resources:
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRESQL_PASSWORD
+              value: webbde
