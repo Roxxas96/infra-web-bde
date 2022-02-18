@@ -20,3 +20,6 @@ spec:
               cpu: "500m"
           ports:
             - containerPort: 3000
+          env:
+            - name: API_URL
+              value: http://back-service:4000/api/api/

@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: back-ingress
+  labels:
+    name: back
+spec:
+  rules:
+    - http:
+        paths:
+          - pathType: Prefix
+            path: "/api"
+            backend:
+              service:
+                name: back-service
+                port:
+                  number: 4000

@@ -20,3 +20,12 @@ spec:
               cpu: "500m"
           ports:
             - containerPort: 4000
+          env:
+            - name: DATABASE_URI
+              value: postgresql://webbde:webbde@postgres-service:5432/webbde
+            - name: API_HOST
+              value: localhost:8081
+            - name: FASTIFY_ADDRESS
+              value: 0.0.0.0
+            - name: FASTIFY_PREFIX
+              value: /api

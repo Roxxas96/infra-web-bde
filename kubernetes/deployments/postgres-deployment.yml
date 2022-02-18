@@ -23,3 +23,7 @@ spec:
           env:
             - name: POSTGRESQL_PASSWORD
               value: webbde
+            - name: POSTGRESQL_USER
+              value: webbde
+            - name: POSTGRESQL_DATABASE
+              value: webbde
