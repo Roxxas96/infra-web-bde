@@ -1,0 +1,2 @@
+INSERT INTO "User" (pseudo, email, password, privilege) VALUES ('Admin User', 'admin@umontpellier.fr', 'changeme', 2);
+INSERT INTO "User" (pseudo, email, password) VALUES ('Default User', 'default@umontpellier.fr', 'changeme');
