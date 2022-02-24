@@ -62,7 +62,7 @@ ingress:
 # Environemnt variables used by the front pod
 environment:
   - name: DATABASE_URI
-    value: postgresql://webbde:webbde@postgres-postgresql-ha-pgpool:5432/webbde
+    value: postgresql://webbde:webbde@postgres-postgresql-ha-pgpool.default.svc.cluster.local:5432/webbde
 
 resources:
   # We usually recommend not to specify default resources and to leave this as a conscious

@@ -538,182 +538,111 @@ postgresql:
   ##
   initdbScripts:
     initdb.sql: |
-      --Create User Table
+      #!/bin/sh
+      echo "-- CreateEnum
+      CREATE TYPE "Validation" AS ENUM ('ACCEPTED', 'PENDING', 'REFUSED');
 
-      CREATE TABLE IF NOT EXISTS "User" (
-          id SERIAL PRIMARY KEY,
-          name VARCHAR(50) DEFAULT '',
-          surname VARCHAR(50) DEFAULT '',
-          pseudo VARCHAR(50) DEFAULT 'Anonym user',
-          email VARCHAR(100) NOT NULL UNIQUE,
-          password VARCHAR(200) NOT NULL CHECK (char_length(password) > 7),
-          privilege INTEGER DEFAULT 0 CHECK (privilege = 0 OR privilege = 1 OR privilege = 2),
-          wallet INTEGER DEFAULT 0
+      -- CreateTable
+      CREATE TABLE "User" (
+          "id" SERIAL NOT NULL,
+          "name" TEXT NOT NULL DEFAULT E'',
+          "surname" TEXT NOT NULL DEFAULT E'',
+          "pseudo" TEXT NOT NULL DEFAULT E'Anonym user',
+          "email" TEXT NOT NULL,
+          "password" TEXT NOT NULL,
+          "privilege" INTEGER NOT NULL DEFAULT 0,
+          "wallet" INTEGER NOT NULL DEFAULT 0,
+
+          CONSTRAINT "User_pkey" PRIMARY KEY ("id")
       );
 
-      --Create Session table, sessions are used to authenticate user using a token put in "Athorization" header
-
-      CREATE TABLE IF NOT EXISTS "Session" (
-          id SERIAL PRIMARY KEY,
+      -- CreateTable
+      CREATE TABLE "Session" (
+          "id" SERIAL NOT NULL,
           "userId" INTEGER NOT NULL,
-          jwt VARCHAR(255) NOT NULL UNIQUE,
-          CONSTRAINT "userSession" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE
+          "jwt" TEXT NOT NULL,
+
+          CONSTRAINT "Session_pkey" PRIMARY KEY ("id")
       );
 
-      --Create Challenge table
-
-      CREATE TABLE IF NOT EXISTS "Challenge" (
-          id SERIAL PRIMARY KEY,
-          name VARCHAR(50) DEFAULT 'Unnamed challenge',
-          description TEXT DEFAULT '',
-          reward INTEGER DEFAULT 0 CHECK (reward >= 0),
-          "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      -- CreateTable
+      CREATE TABLE "Challenge" (
+          "id" SERIAL NOT NULL,
+          "name" TEXT NOT NULL DEFAULT E'Unnamed challenge',
+          "description" TEXT NOT NULL DEFAULT E'',
+          "reward" INTEGER NOT NULL DEFAULT 0,
+          "maxAtempts" INTEGER NOT NULL DEFAULT 3,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           "creatorId" INTEGER,
-          CONSTRAINT "challengeCreator" FOREIGN KEY ("creatorId") REFERENCES "User" ("id") ON DELETE SET NULL
+
+          CONSTRAINT "Challenge_pkey" PRIMARY KEY ("id")
       );
 
-      --Create Accomplishment table, accomplishments are sumbited by users and validated by admins to increase user wallet
-
-      CREATE TABLE If NOT EXISTS "Accomplishment" (
-          id SERIAL PRIMARY KEY,
+      -- CreateTable
+      CREATE TABLE "Accomplishment" (
+          "id" SERIAL NOT NULL,
           "userId" INTEGER,
           "challengeId" INTEGER,
-          proof TEXT DEFAULT '',
-          "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          validation INTEGER CHECK (validation = 1 OR validation = -1),
-          CONSTRAINT "accomplishmentCreator" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE SET NULL,
-          CONSTRAINT "accomplishmentChallenge" FOREIGN KEY ("challengeId") REFERENCES "Challenge" ("id") ON DELETE SET NULL
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "proof" TEXT NOT NULL DEFAULT E'',
+          "validation" "Validation" NOT NULL DEFAULT E'PENDING',
+
+          CONSTRAINT "Accomplishment_pkey" PRIMARY KEY ("id")
       );
 
-      --Create Goodies table
-
-      CREATE TABLE IF NOT EXISTS "Goodies" (
-          id SERIAL PRIMARY KEY,
-          name VARCHAR(50) DEFAULT 'Unnamed goodies',
-          description TEXT DEFAULT '',
-          image TEXT DEFAULT '',
-          price INTEGER DEFAULT 0 CHECK (price >= 0),
-          "buyLimit" INTEGER DEFAULT 1 CHECK ("buyLimit" >= 0),
-          "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      -- CreateTable
+      CREATE TABLE "Goodies" (
+          "id" SERIAL NOT NULL,
+          "name" TEXT NOT NULL DEFAULT E'Unnamed Goodies',
+          "description" TEXT NOT NULL DEFAULT E'',
+          "price" INTEGER NOT NULL DEFAULT 0,
+          "buyLimit" INTEGER NOT NULL DEFAULT 1,
+          "stock" INTEGER NOT NULL DEFAULT 3,
+          "bought" INTEGER NOT NULL DEFAULT 0,
+          "image" TEXT NOT NULL DEFAULT E'',
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           "creatorId" INTEGER,
-          CONSTRAINT "goodiesCreator" FOREIGN KEY ("creatorId") REFERENCES "User" ("id") ON DELETE SET NULL
+
+          CONSTRAINT "Goodies_pkey" PRIMARY KEY ("id")
       );
 
-      --Create Purchase table, purchases are traces of what a user has bought
+      -- CreateTable
+      CREATE TABLE "Purchase" (
+          "id" SERIAL NOT NULL,
+          "goodiesId" INTEGER,
+          "userId" INTEGER,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-      CREATE TABLE IF NOT EXISTS "Purchase" (
-          id SERIAL PRIMARY KEY,
-          "goodiesId" INTEGER NOT NULL,
-          "userId" INTEGER NOT NULL,
-          "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          CONSTRAINT "Purchase_pkey" PRIMARY KEY ("id")
       );
 
-      --Insert a default Super admin so you can add other admins
+      -- CreateIndex
+      CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
-      INSERT INTO "User" (pseudo, email, password, privilege) VALUES (
-          'Admin user',
-          'admin@umontpellier.fr',
-          '$2b$10$HtOLm9x.vZEPe672Kan3pueDmH5LaBpPV2kOiEWtE4xdA3pRfNP/e',
-          2
-      );
+      -- CreateIndex
+      CREATE UNIQUE INDEX "Session_jwt_key" ON "Session"("jwt");
 
-      --On validation trigger, update user wallet when his accomplishment has been validated by an admin, validation states are Accepted: 1, Refused: -1
+      -- AddForeignKey
+      ALTER TABLE "Session" ADD CONSTRAINT "Session_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
-      CREATE OR REPLACE FUNCTION on_validation_update()
-        RETURNS TRIGGER 
-        LANGUAGE PLPGSQL
-        AS
-      $$
-      DECLARE
-        gain INTEGER;
-      BEGIN
-          IF NEW."challengeId" IS NULL OR NEW."userId" IS NULL THEN
-              RETURN NEW;
-          END IF;
-          IF OLD.validation = 1 OR OLD.validation = -1 THEN
-              RAISE EXCEPTION 'Accomplishment has allready a validation state';
-          END IF;
-        IF NEW.validation = 1 THEN
-              SELECT reward INTO gain FROM "Challenge" WHERE id = NEW."challengeId";
+      -- AddForeignKey
+      ALTER TABLE "Challenge" ADD CONSTRAINT "Challenge_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
-          UPDATE "User" SET wallet = wallet + gain WHERE id = NEW."userId";
-        END IF;
+      -- AddForeignKey
+      ALTER TABLE "Accomplishment" ADD CONSTRAINT "Accomplishment_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
-        RETURN NEW;
-      END;
-      $$;
+      -- AddForeignKey
+      ALTER TABLE "Accomplishment" ADD CONSTRAINT "Accomplishment_challengeId_fkey" FOREIGN KEY ("challengeId") REFERENCES "Challenge"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
-      --Use trigger on each update on table accomplishment
+      -- AddForeignKey
+      ALTER TABLE "Goodies" ADD CONSTRAINT "Goodies_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
-      CREATE OR REPLACE TRIGGER increase_wallet
-          BEFORE UPDATE
-          ON "Accomplishment"
-          FOR EACH ROW
-          EXECUTE PROCEDURE on_validation_update();
+      -- AddForeignKey
+      ALTER TABLE "Purchase" ADD CONSTRAINT "Purchase_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
-      --On purchase trigger, update user wallet on buying a goodies
+      -- AddForeignKey
+      ALTER TABLE "Purchase" ADD CONSTRAINT "Purchase_goodiesId_fkey" FOREIGN KEY ("goodiesId") REFERENCES "Goodies"("id") ON DELETE SET NULL ON UPDATE CASCADE;"
 
-      CREATE OR REPLACE FUNCTION on_purchase()
-        RETURNS TRIGGER 
-        LANGUAGE PLPGSQL
-        AS
-      $$
-      DECLARE
-        cost INTEGER;
-          bank INTEGER;
-          bought_count INTEGER;
-          bought_limit INTEGER;
-      BEGIN
-          SELECT price, "buyLimit" INTO cost, bought_limit FROM "Goodies" WHERE id = NEW."goodiesId";
-          SELECT wallet INTO bank FROM "User" WHERE id = NEW."userId";
-          SELECT count(p.id) INTO bought_count FROM "Purchase" p INNER JOIN "Goodies" g ON g.id = p."goodiesId" WHERE p."userId" = NEW."userId";
-
-          IF bought_count >= bought_limit THEN
-              RAISE EXCEPTION 'Limit reached';
-          END IF;
-
-          IF cost > bank THEN
-              RAISE EXCEPTION 'Not enought money in wallet';
-          END IF;
-
-          UPDATE "User" SET wallet = wallet - cost WHERE id = NEW."userId";
-
-        RETURN NEW;
-      END;
-      $$;
-
-      --Use trigger on each insert on table purchase
-
-      CREATE OR REPLACE TRIGGER decrease_wallet
-          BEFORE INSERT
-          ON "Purchase"
-          FOR EACH ROW
-          EXECUTE PROCEDURE on_purchase();
-
-      --On refund trigger, update user wallet when an admin delete his purchase
-      CREATE OR REPLACE FUNCTION on_refund()
-        RETURNS TRIGGER 
-        LANGUAGE PLPGSQL
-        AS
-      $$
-      DECLARE
-        cost INTEGER;
-      BEGIN
-          SELECT price INTO cost FROM "Goodies" WHERE id = OLD."goodiesId";
-
-          UPDATE "User" SET wallet = wallet + cost WHERE id = OLD."userId";
-
-        RETURN OLD;
-      END;
-      $$;
-
-      --Use trigger on each delete on table purchase
-
-      CREATE OR REPLACE TRIGGER increase_wallet
-          BEFORE DELETE
-          ON "Purchase"
-          FOR EACH ROW
-          EXECUTE PROCEDURE on_refund();
   ## @param postgresql.initdbScriptsCM ConfigMap with scripts to be run at first boot
   ## NOTE: This will override initdbScripts
   ##
