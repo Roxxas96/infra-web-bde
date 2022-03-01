@@ -538,8 +538,7 @@ postgresql:
   ##
   initdbScripts:
     initdb.sql: |
-      #!/bin/sh
-      echo "-- CreateEnum
+      -- CreateEnum
       CREATE TYPE "Validation" AS ENUM ('ACCEPTED', 'PENDING', 'REFUSED');
 
       -- CreateTable
@@ -641,7 +640,7 @@ postgresql:
       ALTER TABLE "Purchase" ADD CONSTRAINT "Purchase_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
       -- AddForeignKey
-      ALTER TABLE "Purchase" ADD CONSTRAINT "Purchase_goodiesId_fkey" FOREIGN KEY ("goodiesId") REFERENCES "Goodies"("id") ON DELETE SET NULL ON UPDATE CASCADE;"
+      ALTER TABLE "Purchase" ADD CONSTRAINT "Purchase_goodiesId_fkey" FOREIGN KEY ("goodiesId") REFERENCES "Goodies"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
   ## @param postgresql.initdbScriptsCM ConfigMap with scripts to be run at first boot
   ## NOTE: This will override initdbScripts
