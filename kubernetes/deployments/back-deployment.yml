@@ -22,10 +22,14 @@ spec:
             - containerPort: 4000
           env:
             - name: DATABASE_URI
-              value: postgresql://webbde:webbde@postgres-service:5432/webbde
+              value: postgresql://webbde:webbde@postgres-postgresql-ha-pgpool.default.svc.cluster.local:5432/webbde
             - name: API_HOST
               value: localhost:8081
             - name: FASTIFY_ADDRESS
-              value: 0.0.0.0
+              value: "0.0.0.0"
             - name: FASTIFY_PREFIX
               value: /api
+            - name: FASTIFY_LOG_LEVEL
+              value: info
+            - name: FASTIFY_PORT
+              value: "4000"

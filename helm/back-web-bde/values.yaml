@@ -63,6 +63,22 @@ ingress:
 environment:
   - name: DATABASE_URI
     value: postgresql://webbde:webbde@postgres-postgresql-ha-pgpool.default.svc.cluster.local:5432/webbde
+  - name: JWT_TOKEN
+    value: secrettoken
+  - name: JWT_EXPIRATION
+    value: 30d
+  - name: API_HOST
+    value: preprod.webbde.api.agomez.org
+  - name: EMAIL_REGEX
+    value: ^[\w-\.]+@([\w-]+\.)*umontpellier.fr$$
+  - name: FASTIFY_PORT
+    value: "4000"
+  - name: FASTIFY_ADDRESS
+    value: "0.0.0.0"
+  - name: FASTIFY_LOG_LEVEL
+    value: info
+  - name: FASTIFY_PREFIX
+    value: /api
 
 resources:
   # We usually recommend not to specify default resources and to leave this as a conscious
