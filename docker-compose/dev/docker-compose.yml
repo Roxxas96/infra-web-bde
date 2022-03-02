@@ -2,6 +2,7 @@ version: "2"
 
 volumes:
   db:
+  minio:
 
 services:
   db:
@@ -15,3 +16,20 @@ services:
       - POSTGRESQL_USER=webbde
       - POSTGRESQL_PASSWORD=webbde
       - POSTGRESQL_DATABASE=webbde
+
+  minio:
+    image: "bitnami/minio:latest"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ACCESS_KEY=minio
+      - MINIO_SECRET_KEY=minio
+    networks:
+      - default
+    volumes:
+      - minio:/data
+
+networks:
+  default:
+    name: preprod-web-bde
