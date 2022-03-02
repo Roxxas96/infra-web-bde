@@ -642,6 +642,12 @@ postgresql:
       -- AddForeignKey
       ALTER TABLE "Purchase" ADD CONSTRAINT "Purchase_goodiesId_fkey" FOREIGN KEY ("goodiesId") REFERENCES "Goodies"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
+      -- Add default super admin User
+      INSERT INTO "User" (pseudo, email, password, privilege) VALUES ('Admin User', 'admin@umontpellier.fr', '$2b$10$dRVxEqGOQS03mHxB1a7FH.HqkA5pBDSzzj.AtMM5Dqoi4GfONB0ie', 2);
+
+      -- Add default classical User
+      INSERT INTO "User" (pseudo, email, password) VALUES ('Default User', 'default@umontpellier.fr', '$2b$10$dRVxEqGOQS03mHxB1a7FH.HqkA5pBDSzzj.AtMM5Dqoi4GfONB0ie');
+
   ## @param postgresql.initdbScriptsCM ConfigMap with scripts to be run at first boot
   ## NOTE: This will override initdbScripts
   ##
