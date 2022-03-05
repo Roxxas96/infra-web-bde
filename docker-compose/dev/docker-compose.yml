@@ -23,8 +23,8 @@ services:
       - "9000:9000"
       - "9001:9001"
     environment:
-      - MINIO_ACCESS_KEY=minio-admin
-      - MINIO_SECRET_KEY=minio-admin
+      - MINIO_ACCESS_KEY=minio-access-key
+      - MINIO_SECRET_KEY=minio-secret-key
     networks:
       - default
     volumes:

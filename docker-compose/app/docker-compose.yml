@@ -18,6 +18,20 @@ services:
       - POSTGRESQL_USER=webbde
       - POSTGRESQL_PASSWORD=webbde
       - POSTGRESQL_DATABASE=webbde
+
+  web-bde_minio:
+    image: "bitnami/minio:latest"
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+    environment:
+      - MINIO_ACCESS_KEY=minio-admin
+      - MINIO_SECRET_KEY=minio-admin
+    networks:
+      - default
+    volumes:
+      - minio:/data
   web-bde_back:
     image: webbde-back
     restart: unless-stopped
@@ -31,6 +45,7 @@ services:
       - default
     depends_on:
       - web-bde_db
+      - web-bde_minio
     environment:
       - DATABASE_URI=postgresql://webbde:webbde@web-bde_db:5432/webbde
       - JWT_TOKEN=secrettoken
