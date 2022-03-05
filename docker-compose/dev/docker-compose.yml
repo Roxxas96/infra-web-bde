@@ -23,8 +23,9 @@ services:
       - "9000:9000"
       - "9001:9001"
     environment:
-      - MINIO_ACCESS_KEY=minio-access-key
-      - MINIO_SECRET_KEY=minio-secret-key
+      - MINIO_ROOT_USER=minio-admin
+      - MINIO_ROOT_PASSWORD=minio-admin
+      - MINIO_DEFAULT_BUCKETS=webbde
     networks:
       - default
     volumes:

@@ -26,8 +26,9 @@ services:
         condition: on-failure
         max_attempts: 3
     environment:
-      - MINIO_ACCESS_KEY=minio-admin
-      - MINIO_SECRET_KEY=minio-admin
+      - MINIO_ROOT_USER=minio-admin
+      - MINIO_ROOT_PASSWORD=minio-admin
+      - MINIO_DEFAULT_BUCKETS=webbde
     networks:
       - default
     volumes:
