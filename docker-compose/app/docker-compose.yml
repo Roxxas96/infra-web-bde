@@ -28,7 +28,6 @@ services:
     environment:
       - MINIO_ROOT_USER=minio-admin
       - MINIO_ROOT_PASSWORD=minio-admin
-      - MINIO_DEFAULT_BUCKETS=webbde
     networks:
       - default
     volumes:
